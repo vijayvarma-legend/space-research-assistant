@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline(
-    query: str = "Exoplanets",
+    query: str = "exoplanet detection methods transit radial velocity",
     num_papers: int = 5,
     pdf_dir: Path = Path("data/pdfs"),
     chunks_dir: Path = Path("data/chunks"),
