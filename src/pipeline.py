@@ -1,82 +1,75 @@
 """
-Orchestrates download → parse → chunk and saves the output to JSON.
+Ingestion pipeline: download → parse → chunk → save processed JSON.
+
+Run directly:  python src/pipeline.py
 """
+
+from __future__ import annotations
 
 import json
 import logging
+import sys
 from pathlib import Path
 
-from downloader import download_arxiv_papers
-from parser import extract_text_from_pdf
-from chunker import chunk_pages, Document
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from ingestion.loader import download_arxiv_papers, extract_text_from_pdf
+from ingestion.processor import chunk_pages, Document
 
 logger = logging.getLogger(__name__)
 
+_ROOT = Path(__file__).resolve().parents[1]
+
 
 def run_pipeline(
-    query: str = "exoplanet detection methods transit radial velocity",
+    query: str = "Space Sustainability & Debris Mitigation",
     num_papers: int = 5,
-    pdf_dir: Path = Path("data/pdfs"),
-    chunks_dir: Path = Path("data/chunks"),
+    raw_dir: Path = _ROOT / "data" / "raw",
+    processed_dir: Path = _ROOT / "data" / "processed",
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
 ) -> list[Document]:
-    """
-    Full RAG ingestion pipeline.
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
-    Returns a flat list of Document objects ready for embedding.
-    """
-    chunks_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.info("=== Step 1: Downloading papers (query='%s') ===", query)
-    papers = download_arxiv_papers(query, num_papers, pdf_dir)
+    logger.info("=== Step 1: Downloading (query='%s') ===", query)
+    papers = download_arxiv_papers(query, num_papers, raw_dir)
     if not papers:
         logger.error("No papers downloaded. Aborting.")
         return []
 
-    all_documents: list[Document] = []
+    all_docs: list[Document] = []
 
     for paper in papers:
         pdf_path = Path(paper["pdf_path"])
+
         logger.info("=== Step 2: Parsing %s ===", pdf_path.name)
         pages = extract_text_from_pdf(pdf_path)
-
         if not pages:
             logger.warning("No text extracted from %s — skipping.", pdf_path.name)
             continue
 
         logger.info("=== Step 3: Chunking %s (%d pages) ===", pdf_path.name, len(pages))
         docs = chunk_pages(pages, paper, chunk_size, chunk_overlap)
-        all_documents.extend(docs)
+        all_docs.extend(docs)
 
-    logger.info("=== Step 4: Saving output ===")
-    output_path = chunks_dir / "chunks.json"
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump([d.to_dict() for d in all_documents], f, ensure_ascii=False, indent=2)
+    slug = "_".join(query.lower().split())[:60]
+    out_path = processed_dir / f"chunks_{slug}.json"
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump([d.to_dict() for d in all_docs], f, ensure_ascii=False, indent=2)
 
-    logger.info(
-        "Pipeline complete. %d total chunks saved to %s",
-        len(all_documents),
-        output_path,
-    )
-    return all_documents
+    logger.info("Pipeline complete. %d chunks → %s", len(all_docs), out_path)
+    return all_docs
 
 
 if __name__ == "__main__":
-    _root = Path(__file__).resolve().parent.parent
-    _logs_dir = _root / "logs"
-    _logs_dir.mkdir(exist_ok=True)
-
+    (_ROOT / "logs").mkdir(exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler(_logs_dir / "pipeline.log", encoding="utf-8"),
+            logging.FileHandler(_ROOT / "logs" / "pipeline.log", encoding="utf-8"),
         ],
     )
-    documents = run_pipeline(
-        pdf_dir=_root / "data" / "pdfs",
-        chunks_dir=_root / "data" / "chunks",
-    )
-    print(f"\nReady for embedding: {len(documents)} chunks")
+    docs = run_pipeline()
+    print(f"\nReady for embedding: {len(docs)} chunks")

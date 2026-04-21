@@ -1,6 +1,8 @@
 """
-Splits page text into overlapping chunks and attaches source metadata.
+Splits extracted page text into overlapping chunks with source metadata.
 """
+
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, asdict
@@ -28,12 +30,8 @@ def chunk_pages(
     """
     Split page texts into chunks.
 
-    Each Document carries:
-      - source_filename  : PDF filename
-      - arxiv_id         : arxiv identifier
-      - title            : paper title
-      - page_num         : originating page number
-      - chunk_index      : position of this chunk within the page
+    Each Document.metadata contains:
+      source_filename, arxiv_id, title, authors, published, page_num, chunk_index
     """
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -42,11 +40,8 @@ def chunk_pages(
     )
 
     documents: list[Document] = []
-
     for page in pages:
-        page_num = page["page_num"]
         text = page["text"]
-
         if not text.strip():
             continue
 
@@ -55,14 +50,12 @@ def chunk_pages(
         except Exception as exc:
             logger.warning(
                 "Chunking failed for page %d of %s: %s",
-                page_num,
-                paper_meta.get("filename", "unknown"),
-                exc,
+                page["page_num"], paper_meta.get("filename", "?"), exc,
             )
             continue
 
         for idx, chunk in enumerate(chunks):
-            doc = Document(
+            documents.append(Document(
                 content=chunk,
                 metadata={
                     "source_filename": paper_meta.get("filename", ""),
@@ -70,16 +63,13 @@ def chunk_pages(
                     "title": paper_meta.get("title", ""),
                     "authors": paper_meta.get("authors", []),
                     "published": paper_meta.get("published", ""),
-                    "page_num": page_num,
+                    "page_num": page["page_num"],
                     "chunk_index": idx,
                 },
-            )
-            documents.append(doc)
+            ))
 
     logger.info(
         "Produced %d chunks from %d pages (%s)",
-        len(documents),
-        len(pages),
-        paper_meta.get("filename", ""),
+        len(documents), len(pages), paper_meta.get("filename", ""),
     )
     return documents
