@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from generation.llm_client import generate_answer, get_groq_client
-from retrieval.vector_store import get_collection, query_db
+from retrieval.vector_store import get_collection, query_db, add_papers_to_db
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
@@ -51,7 +51,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://space-research-assistant-production.up.railway.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -90,6 +90,45 @@ class QueryResponse(BaseModel):
     sources: list[SourceRef]
     model: str
     chunks_retrieved: int
+
+
+class IngestRequest(BaseModel):
+    query: str = Field(default="Exoplanets", description="arxiv search query")
+    num_papers: int = Field(default=5, ge=1, le=20)
+
+
+@app.post("/ingest", tags=["ops"])
+async def ingest(req: IngestRequest):
+    """Download papers, chunk them, and upsert into the vector store."""
+    import asyncio
+    from ingestion.loader import download_arxiv_papers, extract_text_from_pdf
+    from ingestion.processor import chunk_pages
+
+    root = Path(__file__).resolve().parents[1]
+    raw_dir = root / "data" / "raw"
+    processed_dir = root / "data" / "processed"
+
+    try:
+        papers = await asyncio.to_thread(
+            download_arxiv_papers, req.query, req.num_papers, raw_dir
+        )
+        if not papers:
+            raise HTTPException(status_code=404, detail="No papers found for that query.")
+
+        all_chunks = []
+        for paper in papers:
+            pages = await asyncio.to_thread(extract_text_from_pdf, Path(paper["pdf_path"]))
+            chunks = chunk_pages(pages, paper)
+            all_chunks.extend(chunks)
+
+        upserted = await asyncio.to_thread(add_papers_to_db, all_chunks)
+        return {"papers": len(papers), "chunks_upserted": upserted}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Ingestion failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/health", tags=["ops"])

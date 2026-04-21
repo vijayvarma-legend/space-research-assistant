@@ -37,7 +37,7 @@ COPY src/ ./src/
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 ENV PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PORT=8080
 
 EXPOSE 8000
 
