@@ -31,9 +31,6 @@ COPY src/ ./src/
 # Copy built React app from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Persistent volumes for ChromaDB and PDFs
-VOLUME ["/app/database", "/app/data"]
-
 ENV PYTHONUNBUFFERED=1 \
     PORT=8000
 
