@@ -21,8 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies
 COPY requirements.txt .
+
+# Install CPU-only PyTorch first (~200MB vs ~2GB with CUDA)
+# This must come before sentence-transformers to prevent it pulling full CUDA torch
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
