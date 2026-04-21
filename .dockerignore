@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Frontend source (only dist is needed in the image)
+frontend/node_modules/
+frontend/dist/
+
+# Data and DB (mounted as volumes at runtime)
+data/
+database/
+logs/
+
+# Misc
+.env
+.git/
+.gitignore
