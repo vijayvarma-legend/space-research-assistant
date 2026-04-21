@@ -5,8 +5,6 @@ import Message from './components/Message'
 import TypingIndicator from './components/TypingIndicator'
 import ChatInput from './components/ChatInput'
 import EmptyState from './components/EmptyState'
-import './index.css'
-
 const STORAGE_KEY = 'space_chat_history'
 
 function loadHistory() {

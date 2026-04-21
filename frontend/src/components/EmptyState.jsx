@@ -18,7 +18,7 @@ export default function EmptyState({ onSuggestion }) {
           <button
             key={s}
             onClick={() => onSuggestion(s)}
-            className="text-left text-sm text-gray-300 bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700 rounded-xl px-4 py-3 transition-colors"
+            className="text-left text-sm text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl px-4 py-3 transition-colors"
           >
             {s}
           </button>
